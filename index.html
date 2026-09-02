@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Team Management System — SSS Funds</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- ══════════════ TOP BAR ══════════════ -->
+<header class="ft-topbar">
+  <div class="ft-hamburger" onclick="toggleSidebar()" title="Toggle Menu">
+    <span></span><span></span><span></span>
+  </div>
+  <div class="ft-brand">
+    <div class="ft-brand-icon">🌿</div>
+    <span>SSS Funds</span>
+  </div>
+  <div class="ft-topbar-center">
+    <span class="ft-page-title" id="topbarTitle">Dashboard</span>
+  </div>
+  <div class="ft-topbar-right">
+    <div class="ft-topbar-chip">
+      <span class="dot"></span>
+      <span id="topbarDate"></span>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════ SHELL ══════════════ -->
+<div class="ft-shell">
+
+  <!-- SIDEBAR -->
+  <nav class="ft-sidebar" id="sidebar">
+    <div class="ft-sidebar-header">Navigation</div>
+    <div class="ft-nav">
+      <div class="ft-nav-item active" data-page="dashboard" data-label="Dashboard" onclick="navTo('dashboard',this)">
+        <div class="ft-nav-icon">📊</div>
+        <span class="ft-nav-label">Dashboard</span>
+      </div>
+      <div class="ft-nav-item" data-page="members" data-label="Members" onclick="navTo('members',this)">
+        <div class="ft-nav-icon">👤</div>
+        <span class="ft-nav-label">Members</span>
+      </div>
+      <div class="ft-nav-item" data-page="loans" data-label="Loans" onclick="navTo('loans',this)">
+        <div class="ft-nav-icon">💰</div>
+        <span class="ft-nav-label">Loans</span>
+      </div>
+      <div class="ft-nav-item" data-page="repayment" data-label="Re-Payment" onclick="navTo('repayment',this)">
+        <div class="ft-nav-icon">📒</div>
+        <span class="ft-nav-label">Re-Payment</span>
+      </div>
+      <div class="ft-nav-item" data-page="cumulative" data-label="Cumulative Amount" onclick="navTo('cumulative',this)">
+        <div class="ft-nav-icon">🏦</div>
+        <span class="ft-nav-label">Cumulative Amount</span>
+      </div>
+      <div class="ft-nav-item" data-page="dbsync" data-label="DB Sync" onclick="navTo('dbsync',this)">
+        <div class="ft-nav-icon">
+          <!-- Google Sheets SVG icon -->
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <rect x="3" y="2" width="18" height="20" rx="2" fill="#0f9d58" opacity="0.2"/>
+            <rect x="3" y="2" width="18" height="20" rx="2" stroke="#0f9d58" stroke-width="1.5"/>
+            <line x1="3" y1="8"  x2="21" y2="8"  stroke="#0f9d58" stroke-width="1.2"/>
+            <line x1="3" y1="13" x2="21" y2="13" stroke="#0f9d58" stroke-width="1.2"/>
+            <line x1="3" y1="18" x2="21" y2="18" stroke="#0f9d58" stroke-width="1.2"/>
+            <line x1="9"  y1="8" x2="9"  y2="22" stroke="#0f9d58" stroke-width="1.2"/>
+            <line x1="15" y1="8" x2="15" y2="22" stroke="#0f9d58" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <span class="ft-nav-label">DB Sync</span>
+      </div>
+      <div class="ft-nav-item" data-page="reports" data-label="Reports" onclick="navTo('reports',this)">
+        <div class="ft-nav-icon">📄</div>
+        <span class="ft-nav-label">Reports</span>
+      </div>
+    </div>
+    <div class="ft-sidebar-footer">SSS • Team Management</div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="ft-main" id="mainContent">
+
+    <!-- ══ DASHBOARD ══ -->
+    <section class="ft-page active" id="page-dashboard">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Dashboard Overview</span>
+        <button class="ft-btn ft-btn-secondary ft-btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+      </div>
+      <div class="ft-stats-grid" id="dashStats"></div>
+      <div class="ft-section-header" style="margin-top:4px"><span class="ft-section-title">Loan Status</span></div>
+      <div class="ft-loan-cards" id="dashLoanCards"></div>
+    </section>
+
+    <!-- ══ MEMBERS ══ -->
+    <section class="ft-page" id="page-members">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Members</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="ft-search-wrap" style="min-width:180px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" class="ft-input-search" placeholder="Search members…" oninput="filterCards('members',this.value)"/>
+          </div>
+          <button class="ft-btn ft-btn-primary" onclick="openMemberModal()">＋ Add Member</button>
+        </div>
+      </div>
+      <div class="ft-card-grid" id="membersCardGrid"></div>
+      <div class="ft-pagination" id="membersPagination"></div>
+    </section>
+
+    <!-- ══ LOANS ══ -->
+    <section class="ft-page" id="page-loans">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Loans</span>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div class="ft-search-wrap" style="min-width:180px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" class="ft-input-search" placeholder="Search loans…" oninput="filterCards('loans',this.value)"/>
+          </div>
+          <button class="ft-btn ft-btn-primary" onclick="openLoanModal()">＋ Add Loan</button>
+        </div>
+      </div>
+      <div class="ft-card-grid" id="loansCardGrid"></div>
+      <div class="ft-pagination" id="loansPagination"></div>
+    </section>
+
+    <!-- ══ REPAYMENT ══ -->
+    <section class="ft-page" id="page-repayment">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Monthly Re-Payment</span>
+        <button class="ft-btn ft-btn-primary" onclick="openRepayModal()">＋ Record Payment</button>
+      </div>
+      <div class="ft-card-grid" id="repayCardGrid"></div>
+      <div class="ft-pagination" id="repayPagination"></div>
+    </section>
+
+    <!-- ══ CUMULATIVE ══ -->
+    <section class="ft-page" id="page-cumulative">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Cumulative Member Amount</span>
+        <button class="ft-btn ft-btn-secondary ft-btn-sm" onclick="loadCumulative()">↻ Refresh</button>
+      </div>
+      <div class="ft-card">
+        <div class="ft-card-header"><span class="ft-card-title">🏦 Member Fund Summary</span></div>
+        <div style="overflow-x:auto">
+          <table class="ft-cumulative-table" id="tblCumulative">
+            <thead><tr>
+              <th style="width:50px">#</th>
+              <th>Member Name</th>
+              <th>Date of Joining</th>
+              <th>Cumulative Amount</th>
+            </tr></thead>
+            <tbody id="cumulativeBody"></tbody>
+            <tfoot id="cumulativeFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ DB SYNC ══ -->
+    <section class="ft-page" id="page-dbsync">
+      <div class="ft-section-header"><span class="ft-section-title">Database Sync & Backup</span></div>
+      <div class="ft-sync-cards">
+        <div class="ft-sync-card">
+          <div class="ft-sync-icon">📤</div>
+          <div class="ft-sync-title">Export / Backup</div>
+          <div class="ft-sync-desc">Download all database tables — Members, Loans, Monthly Payments — as a JSON file for offline backup or Google Sheets import.</div>
+          <button class="ft-btn ft-btn-primary" style="width:100%;margin-bottom:8px" onclick="exportJSON()">⬇ Download JSON Backup</button>
+          <button class="ft-btn ft-btn-secondary" style="width:100%" onclick="exportCSV()">⬇ Download CSV (Payments)</button>
+        </div>
+        <div class="ft-sync-card">
+          <div class="ft-sync-icon">📥</div>
+          <div class="ft-sync-title">Import / Restore</div>
+          <div class="ft-sync-desc">Restore a previously exported JSON backup into the local database. This will merge and overwrite matching records.</div>
+          <label class="ft-btn ft-btn-secondary" style="width:100%;justify-content:center;cursor:pointer">
+            ⬆ Load JSON Backup
+            <input type="file" accept=".json" style="display:none" onchange="importJSON(this)"/>
+          </label>
+        </div>
+      </div>
+      <div class="ft-card" style="margin-top:20px">
+        <div class="ft-card-header"><span class="ft-card-title">📋 Activity Log</span></div>
+        <div style="padding:16px;font-size:14px;color:var(--ft-text-muted);min-height:80px;line-height:1.8" id="syncLog">No activity yet.</div>
+      </div>
+    </section>
+
+    <!-- ══ REPORTS ══ -->
+    <section class="ft-page" id="page-reports">
+      <div class="ft-section-header">
+        <span class="ft-section-title">Outstanding Reports</span>
+        <button class="ft-btn ft-btn-secondary ft-btn-sm" onclick="loadReports()">↻ Refresh</button>
+      </div>
+      <div id="reportContent"></div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ══════════════ MEMBER MODAL ══════════════ -->
+<div class="ft-modal-overlay" id="memberModal">
+  <div class="ft-modal">
+    <div class="ft-modal-header">
+      <span class="ft-modal-title" id="memberModalTitle">Add Member</span>
+      <div class="ft-modal-close" onclick="closeModal('memberModal')">✕</div>
+    </div>
+    <div class="ft-modal-body">
+      <input type="hidden" id="mId"/>
+      <div class="ft-form-grid">
+        <div class="ft-form-group full">
+          <label class="ft-label">Full Name *</label>
+          <input type="text" class="ft-input" id="mName" placeholder="Enter full name"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Age *</label>
+          <input type="number" class="ft-input" id="mAge" placeholder="Age" min="18" max="90"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Phone *</label>
+          <input type="text" class="ft-input" id="mPhone" placeholder="10-digit number" maxlength="10"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Join Date *</label>
+          <input type="date" class="ft-input" id="mJoinDate"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Member Amount (₹)</label>
+          <input type="number" class="ft-input" id="mAmount" placeholder="0" oninput="previewAmount(this,'mAmtPreview')"/>
+          <div class="ft-amount-preview" id="mAmtPreview"></div>
+        </div>
+        <div class="ft-form-group full">
+          <label class="ft-label">Address / Place</label>
+          <input type="text" class="ft-input" id="mAddress" placeholder="City / Area"/>
+        </div>
+      </div>
+    </div>
+    <div class="ft-modal-footer">
+      <button class="ft-btn ft-btn-secondary" onclick="closeModal('memberModal')">Cancel</button>
+      <button class="ft-btn ft-btn-primary" onclick="saveMember()">💾 Save Member</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ LOAN MODAL ══════════════ -->
+<div class="ft-modal-overlay" id="loanModal">
+  <div class="ft-modal">
+    <div class="ft-modal-header">
+      <span class="ft-modal-title" id="loanModalTitle">Add Loan</span>
+      <div class="ft-modal-close" onclick="closeModal('loanModal')">✕</div>
+    </div>
+    <div class="ft-modal-body">
+      <input type="hidden" id="lId"/>
+      <div class="ft-form-grid">
+        <div class="ft-form-group full">
+          <label class="ft-label">Loan Name *</label>
+          <input type="text" class="ft-input" id="lName" placeholder="e.g. Festival Loan"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Loan Amount (₹) *</label>
+          <input type="number" class="ft-input" id="lAmount" placeholder="0" oninput="previewAmount(this,'lAmtPreview')"/>
+          <div class="ft-amount-preview" id="lAmtPreview"></div>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Interest Rate (%)</label>
+          <input type="number" class="ft-input" id="lInterest" placeholder="e.g. 1.5" step="0.01"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Duration (months) *</label>
+          <input type="number" class="ft-input" id="lDuration" placeholder="e.g. 24" min="1"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Start Date</label>
+          <input type="date" class="ft-input" id="lStart"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">End Date</label>
+          <input type="date" class="ft-input" id="lEnd"/>
+        </div>
+      </div>
+    </div>
+    <div class="ft-modal-footer">
+      <button class="ft-btn ft-btn-secondary" onclick="closeModal('loanModal')">Cancel</button>
+      <button class="ft-btn ft-btn-primary" onclick="saveLoan()">💾 Save Loan</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ REPAY MODAL ══════════════ -->
+<div class="ft-modal-overlay" id="repayModal">
+  <div class="ft-modal">
+    <div class="ft-modal-header">
+      <span class="ft-modal-title" id="repayModalTitle">Record Payment</span>
+      <div class="ft-modal-close" onclick="closeModal('repayModal')">✕</div>
+    </div>
+    <div class="ft-modal-body">
+      <input type="hidden" id="rId"/>
+      <div class="ft-form-grid">
+        <div class="ft-form-group full">
+          <label class="ft-label">Loan *</label>
+          <select class="ft-select" id="rLoanId"></select>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Year *</label>
+          <input type="number" class="ft-input" id="rYear" placeholder="YYYY"/>
+        </div>
+        <div class="ft-form-group">
+          <label class="ft-label">Month *</label>
+          <select class="ft-select" id="rMonth">
+            <option value="1">January</option><option value="2">February</option>
+            <option value="3">March</option><option value="4">April</option>
+            <option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option>
+            <option value="9">September</option><option value="10">October</option>
+            <option value="11">November</option><option value="12">December</option>
+          </select>
+        </div>
+        <div class="ft-form-group full">
+          <label class="ft-label">Total Amount (₹) *</label>
+          <input type="number" class="ft-input" id="rAmount" placeholder="0" oninput="previewAmount(this,'rAmtPreview')"/>
+          <div class="ft-amount-preview" id="rAmtPreview"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ft-modal-footer">
+      <button class="ft-btn ft-btn-secondary" onclick="closeModal('repayModal')">Cancel</button>
+      <button class="ft-btn ft-btn-primary" onclick="saveRepay()">💾 Save Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ CONFIRM ══════════════ -->
+<div class="ft-confirm-overlay" id="confirmOverlay">
+  <div class="ft-confirm-box">
+    <div class="ft-confirm-icon">⚠️</div>
+    <div class="ft-confirm-title">Confirm Delete</div>
+    <div class="ft-confirm-msg" id="confirmMsg">Are you sure? This cannot be undone.</div>
+    <div class="ft-confirm-btns">
+      <button class="ft-btn ft-btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="ft-btn ft-btn-danger" id="confirmOkBtn">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TOASTS ══════════════ -->
+<div class="ft-toast-container" id="toastContainer"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   GLOBALS
+═══════════════════════════════════════════ */
+let db  = null;
+let SQL = null;
+
+const MONTHS = ['','January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+const cardState = {
+  members: { data:[], filtered:[], page:1, pageSize:50 },
+  loans:   { data:[], filtered:[], page:1, pageSize:50 },
+  repay:   { data:[], filtered:[], page:1, pageSize:50 },
+};
+
+/* ═══════════════════════════════════════════
+   BOOTSTRAP
+═══════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('topbarDate').textContent =
+    new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  try {
+    SQL = await initSqlJs({ locateFile: f=>`https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+    initDB();
+    loadDashboard();
+  } catch(e) { toast('DB init failed: '+e.message,'error'); }
+});
+
+/* ═══════════════════════════════════════════
+   DATABASE
+═══════════════════════════════════════════ */
+function initDB() {
+  const saved = localStorage.getItem('tms_db');
+  if (saved) { db = new SQL.Database(new Uint8Array(JSON.parse(saved))); createTables(); return; }
+  db = new SQL.Database();
+  createTables();
+  insertSampleData();
+  saveDB();
+}
+
+function createTables() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS Members (
+      memberId INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, age INTEGER, phone TEXT,
+      address TEXT, joinDate TEXT, memberAmount INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS LoanMaster (
+      loanId INTEGER PRIMARY KEY AUTOINCREMENT,
+      loanName TEXT NOT NULL, loanAmount REAL,
+      loanStartDate TEXT, loanEndDate TEXT, loanDuration INTEGER, interest REAL
+    );
+    CREATE TABLE IF NOT EXISTS MonthlyPayment (
+      payId INTEGER PRIMARY KEY AUTOINCREMENT,
+      loanId INTEGER, month INTEGER, year INTEGER, totalAmount REAL,
+      FOREIGN KEY (loanId) REFERENCES LoanMaster(loanId)
+    );
+  `);
+}
+
+function insertSampleData() {
+  [
+    ['Saravanan',38,'9876501001','Thanjavur','2024-01-10',0],
+    ['Sivakumar',42,'9876501002','Thanjavur','2024-01-10',0],
+    ['Sukumar',35,'9876501003','Thanjavur','2024-01-10',0],
+    ['Karunanithi',44,'9876501004','Thanjavur','2024-01-10',0],
+    ['Sachu Subramaniyan',31,'9876501005','Thanjavur','2024-01-10',0],
+    ['Venkatesh',39,'9876501006','Thanjavur','2024-01-10',0],
+    ['Maruganantham',46,'9876501007','Thanjavur','2024-01-10',0],
+    ['Idhayakumar',33,'9876501008','Thanjavur','2024-01-10',0],
+    ['Krishnamoorthy',51,'9876501009','Thanjavur','2024-01-10',0],
+    ['Sakthivel',29,'9876501010','Thanjavur','2024-01-10',0],
+    ['Karthikeyan',37,'9876501011','Ooty','2024-01-10',0],
+  ].forEach(m => db.run('INSERT INTO Members(name,age,phone,address,joinDate,memberAmount) VALUES(?,?,?,?,?,?)',m));
+
+  db.run('INSERT INTO LoanMaster(loanName,loanAmount,loanStartDate,loanEndDate,loanDuration,interest) VALUES(?,?,?,?,?,?)',
+    ['Festival Loan',200000,'2025-02-01','2025-12-31',24,1]);
+  db.run('INSERT INTO LoanMaster(loanName,loanAmount,loanStartDate,loanEndDate,loanDuration,interest) VALUES(?,?,?,?,?,?)',
+    ['Emergency Fund',50000,'2025-01-01','2025-06-30',12,1.5]);
+  db.run('INSERT INTO LoanMaster(loanName,loanAmount,loanStartDate,loanEndDate,loanDuration,interest) VALUES(?,?,?,?,?,?)',
+    ['Milk Loan',70000,'2024-05-01','2025-05-31',15,1]);
+
+  // May 2026 payments: loanId 1=Festival, 2=Emergency, 3=Milk
+  db.run('INSERT INTO MonthlyPayment(loanId,month,year,totalAmount) VALUES(?,?,?,?)',[3,5,2026,5000]);
+  db.run('INSERT INTO MonthlyPayment(loanId,month,year,totalAmount) VALUES(?,?,?,?)',[2,5,2026,6000]);
+  db.run('INSERT INTO MonthlyPayment(loanId,month,year,totalAmount) VALUES(?,?,?,?)',[1,5,2026,100000]);
+}
+
+function saveDB() {
+  if (!db) return;
+  localStorage.setItem('tms_db', JSON.stringify(Array.from(db.export())));
+}
+
+function Q(sql, p=[]) {
+  const r = db.exec(sql,p);
+  if (!r.length) return [];
+  return r[0].values.map(row => { const o={}; r[0].columns.forEach((c,i)=>o[c]=row[i]); return o; });
+}
+
+/* ═══════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════ */
+function navTo(page, el) {
+  document.querySelectorAll('.ft-nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.ft-page').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-'+page).classList.add('active');
+  document.getElementById('topbarTitle').textContent = el.querySelector('.ft-nav-label').textContent;
+  if (window.innerWidth<=768) document.getElementById('sidebar').classList.add('collapsed');
+  ({dashboard:loadDashboard,members:loadMembers,loans:loadLoans,
+    repayment:loadRepay,cumulative:loadCumulative,reports:loadReports}[page]||(()=>{}))();
+}
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function inr(n)  { return '₹'+Number(n||0).toLocaleString('en-IN'); }
+function fmtDate(d) {
+  if (!d) return '—';
+  const [y,m,day] = d.split('-');
+  return `${day}-${m}-${y}`;
+}
+function initials(name) { return name.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function previewAmount(el,pid) {
+  const v=parseFloat(el.value);
+  document.getElementById(pid).textContent = isNaN(v)?'':inr(v);
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════ */
+function loadDashboard() {
+  const mCount = Q('SELECT COUNT(*) c FROM Members')[0]?.c||0;
+  const lCount = Q('SELECT COUNT(*) c FROM LoanMaster')[0]?.c||0;
+  const tPaid  = Q('SELECT SUM(totalAmount) s FROM MonthlyPayment')[0]?.s||0;
+  const tLoan  = Q('SELECT SUM(loanAmount) s FROM LoanMaster')[0]?.s||0;
+
+  document.getElementById('dashStats').innerHTML = `
+    <div class="ft-stat-card">
+      <span class="ft-stat-icon">👤</span>
+      <div class="ft-stat-value">${mCount}</div>
+      <div class="ft-stat-label">Total Members</div>
+    </div>
+    <div class="ft-stat-card">
+      <span class="ft-stat-icon">💰</span>
+      <div class="ft-stat-value">${lCount}</div>
+      <div class="ft-stat-label">Active Loans</div>
+    </div>
+    <div class="ft-stat-card">
+      <span class="ft-stat-icon">✅</span>
+      <div class="ft-stat-value" style="font-size:16px">${inr(tPaid)}</div>
+      <div class="ft-stat-label">Total Collected</div>
+    </div>
+    <div class="ft-stat-card">
+      <span class="ft-stat-icon">🏦</span>
+      <div class="ft-stat-value" style="font-size:16px">${inr(tLoan)}</div>
+      <div class="ft-stat-label">Total Loan Value</div>
+    </div>
+  `;
+
+  const loans = Q('SELECT * FROM LoanMaster');
+  document.getElementById('dashLoanCards').innerHTML = loans.length
+    ? loans.map(loan=>{
+        const paid = Q('SELECT COUNT(*) c FROM MonthlyPayment WHERE loanId=?',[loan.loanId])[0]?.c||0;
+        const out  = loan.loanDuration - paid;
+        const pct  = Math.min(100, loan.loanDuration>0 ? Math.round((paid/loan.loanDuration)*100) : 0);
+        return `<div class="ft-loan-card">
+          <div class="ft-loan-card-name">💳 ${loan.loanName}</div>
+          <div class="ft-loan-card-grid">
+            <div class="ft-loan-metric">
+              <div class="ft-loan-metric-val" style="color:#81c784">${paid}</div>
+              <div class="ft-loan-metric-label">Months Paid</div>
+            </div>
+            <div class="ft-loan-metric">
+              <div class="ft-loan-metric-val" style="color:${out>0?'var(--ft-gold)':'#81c784'}">${out}</div>
+              <div class="ft-loan-metric-label">Outstanding</div>
+            </div>
+            <div class="ft-loan-metric">
+              <div class="ft-loan-metric-val" style="color:var(--ft-silver-muted);font-size:14px">${inr(loan.loanAmount)}</div>
+              <div class="ft-loan-metric-label">Loan Amount</div>
+            </div>
+            <div class="ft-loan-metric">
+              <div class="ft-loan-metric-val" style="color:var(--ft-blue);font-size:18px">${pct}%</div>
+              <div class="ft-loan-metric-label">Completed</div>
+            </div>
+          </div>
+          <div class="ft-progress-bar"><div class="ft-progress-fill" style="width:${pct}%"></div></div>
+        </div>`;
+      }).join('')
+    : '<div class="ft-empty"><div class="ft-empty-icon">💰</div><div class="ft-empty-text">No loans found</div></div>';
+}
+
+/* ═══════════════════════════════════════════
+   MEMBERS
+═══════════════════════════════════════════ */
+function loadMembers() {
+  cardState.members.data = Q('SELECT * FROM Members ORDER BY name');
+  cardState.members.filtered = [...cardState.members.data];
+  cardState.members.page = 1;
+  renderMemberCards();
+}
+
+function renderMemberCards() {
+  const {filtered,page,pageSize} = cardState.members;
+  const start = (page-1)*pageSize;
+  const slice = filtered.slice(start,start+pageSize);
+  const grid  = document.getElementById('membersCardGrid');
+
+  grid.innerHTML = slice.length
+    ? slice.map(m=>`
+        <div class="ft-member-card">
+          <div class="ft-member-top">
+            <div class="ft-member-avatar">${initials(m.name)}</div>
+          </div>
+          <div class="ft-member-name">${m.name}</div>
+          <div style="height:8px"></div>
+          <div class="ft-member-row"><span class="lbl">📞 Mobile</span><span>${m.phone||'—'}</span></div>
+          <div class="ft-member-row"><span class="lbl">🎂 Age</span><span>${m.age||'—'}</span></div>
+          <div class="ft-member-row"><span class="lbl">📍 Place</span><span>${m.address||'—'}</span></div>
+          <div class="ft-member-row"><span class="lbl">📅 DOJ</span><span>${fmtDate(m.joinDate)}</span></div>
+          <div class="ft-member-row"><span class="lbl">💰 Amt</span><span style="color:var(--ft-eco-bright);font-weight:600">${inr(m.memberAmount)}</span></div>
+          <div class="ft-member-actions">
+            <button class="ft-icon-btn ft-icon-btn-edit"   title="Edit"   onclick="openMemberModal(${m.memberId})">✏️</button>
+            <button class="ft-icon-btn ft-icon-btn-delete" title="Delete" onclick="confirmDelete('member',${m.memberId},'${m.name.replace(/'/g,"\\'")}')">🗑️</button>
+          </div>
+        </div>`).join('')
+    : '<div class="ft-empty"><div class="ft-empty-icon">👤</div><div class="ft-empty-text">No members found</div></div>';
+
+  renderCardPagination('members','membersPagination');
+}
+
+function openMemberModal(id) {
+  clearModal('memberModal');
+  if (id) {
+    const r = Q('SELECT * FROM Members WHERE memberId=?',[id])[0];
+    document.getElementById('memberModalTitle').textContent = 'Edit Member';
+    document.getElementById('mId').value      = r.memberId;
+    document.getElementById('mName').value    = r.name;
+    document.getElementById('mAge').value     = r.age;
+    document.getElementById('mPhone').value   = r.phone;
+    document.getElementById('mAddress').value = r.address;
+    document.getElementById('mJoinDate').value= r.joinDate;
+    document.getElementById('mAmount').value  = r.memberAmount;
+    document.getElementById('mAmtPreview').textContent = inr(r.memberAmount);
+  } else {
+    document.getElementById('memberModalTitle').textContent = 'Add Member';
+    document.getElementById('mJoinDate').value = new Date().toISOString().split('T')[0];
+  }
+  openModal('memberModal');
+}
+
+function saveMember() {
+  const id   = document.getElementById('mId').value;
+  const name = document.getElementById('mName').value.trim();
+  if (!name) return toast('Name is required','error');
+  const vals = [name,+document.getElementById('mAge').value||0,
+    document.getElementById('mPhone').value.trim(),
+    document.getElementById('mAddress').value.trim(),
+    document.getElementById('mJoinDate').value,
+    +document.getElementById('mAmount').value||0];
+  if (id) {
+    db.run('UPDATE Members SET name=?,age=?,phone=?,address=?,joinDate=?,memberAmount=? WHERE memberId=?',[...vals,id]);
+    toast('Member updated','success');
+  } else {
+    db.run('INSERT INTO Members(name,age,phone,address,joinDate,memberAmount) VALUES(?,?,?,?,?,?)',vals);
+    toast('Member added','success');
+  }
+  saveDB(); closeModal('memberModal'); loadMembers();
+}
+
+/* ═══════════════════════════════════════════
+   LOANS
+═══════════════════════════════════════════ */
+function loadLoans() {
+  cardState.loans.data = Q('SELECT * FROM LoanMaster ORDER BY loanId');
+  cardState.loans.filtered = [...cardState.loans.data];
+  cardState.loans.page = 1;
+  renderLoanCards();
+}
+
+function renderLoanCards() {
+  const {filtered,page,pageSize} = cardState.loans;
+  const start = (page-1)*pageSize;
+  const slice = filtered.slice(start,start+pageSize);
+  const grid  = document.getElementById('loansCardGrid');
+
+  grid.innerHTML = slice.length
+    ? slice.map(l=>`
+        <div class="ft-loan-master-card">
+          <div class="ft-loan-master-name">💳 ${l.loanName}</div>
+          <div class="ft-loan-master-amount">${inr(l.loanAmount)}</div>
+          <div class="ft-loan-detail-row"><span class="ft-loan-detail-label">Interest</span><span class="ft-loan-detail-val"><span class="ft-chip ft-chip-gold">${l.interest}%</span></span></div>
+          <div class="ft-loan-detail-row"><span class="ft-loan-detail-label">Duration</span><span class="ft-loan-detail-val">${l.loanDuration} months</span></div>
+          <div class="ft-loan-detail-row"><span class="ft-loan-detail-label">Start Date</span><span class="ft-loan-detail-val">${fmtDate(l.loanStartDate)}</span></div>
+          <div class="ft-loan-detail-row"><span class="ft-loan-detail-label">End Date</span><span class="ft-loan-detail-val">${fmtDate(l.loanEndDate)}</span></div>
+          <div class="ft-loan-master-actions">
+            <button class="ft-icon-btn ft-icon-btn-edit"   title="Edit"   onclick="openLoanModal(${l.loanId})">✏️</button>
+            <button class="ft-icon-btn ft-icon-btn-delete" title="Delete" onclick="confirmDelete('loan',${l.loanId},'${l.loanName.replace(/'/g,"\\'")}')">🗑️</button>
+          </div>
+        </div>`).join('')
+    : '<div class="ft-empty"><div class="ft-empty-icon">💰</div><div class="ft-empty-text">No loans found</div></div>';
+
+  renderCardPagination('loans','loansPagination');
+}
+
+function openLoanModal(id) {
+  clearModal('loanModal');
+  if (id) {
+    const r = Q('SELECT * FROM LoanMaster WHERE loanId=?',[id])[0];
+    document.getElementById('loanModalTitle').textContent = 'Edit Loan';
+    document.getElementById('lId').value       = r.loanId;
+    document.getElementById('lName').value     = r.loanName;
+    document.getElementById('lAmount').value   = r.loanAmount;
+    document.getElementById('lInterest').value = r.interest;
+    document.getElementById('lStart').value    = r.loanStartDate;
+    document.getElementById('lEnd').value      = r.loanEndDate;
+    document.getElementById('lDuration').value = r.loanDuration;
+    document.getElementById('lAmtPreview').textContent = inr(r.loanAmount);
+  } else {
+    document.getElementById('loanModalTitle').textContent = 'Add Loan';
+  }
+  openModal('loanModal');
+}
+
+function saveLoan() {
+  const id=document.getElementById('lId').value;
+  const name=document.getElementById('lName').value.trim();
+  const amount=+document.getElementById('lAmount').value||0;
+  const dur=+document.getElementById('lDuration').value||0;
+  if (!name)   return toast('Loan name required','error');
+  if (!amount) return toast('Loan amount required','error');
+  if (!dur)    return toast('Duration required','error');
+  const vals=[name,amount,document.getElementById('lStart').value,
+    document.getElementById('lEnd').value,dur,+document.getElementById('lInterest').value||0];
+  if (id) {
+    db.run('UPDATE LoanMaster SET loanName=?,loanAmount=?,loanStartDate=?,loanEndDate=?,loanDuration=?,interest=? WHERE loanId=?',[...vals,id]);
+    toast('Loan updated','success');
+  } else {
+    db.run('INSERT INTO LoanMaster(loanName,loanAmount,loanStartDate,loanEndDate,loanDuration,interest) VALUES(?,?,?,?,?,?)',vals);
+    toast('Loan added','success');
+  }
+  saveDB(); closeModal('loanModal'); loadLoans();
+}
+
+/* ═══════════════════════════════════════════
+   REPAYMENT
+═══════════════════════════════════════════ */
+function loadRepay() {
+  cardState.repay.data = Q(`
+    SELECT mp.payId,lm.loanName,mp.month,mp.year,mp.totalAmount,mp.loanId
+    FROM MonthlyPayment mp JOIN LoanMaster lm ON mp.loanId=lm.loanId
+    ORDER BY mp.year DESC,mp.month DESC`);
+  cardState.repay.filtered = [...cardState.repay.data];
+  cardState.repay.page = 1;
+  renderRepayCards();
+}
+
+function renderRepayCards() {
+  const {filtered,page,pageSize} = cardState.repay;
+  const start = (page-1)*pageSize;
+  const slice = filtered.slice(start,start+pageSize);
+  const grid  = document.getElementById('repayCardGrid');
+
+  grid.innerHTML = slice.length
+    ? slice.map(p=>`
+        <div class="ft-pay-card">
+          <div class="ft-pay-card-loan">📒 ${p.loanName}</div>
+          <div class="ft-pay-card-amount">${inr(p.totalAmount)}</div>
+          <div class="ft-pay-card-meta">${MONTHS[p.month]} ${p.year}</div>
+          <div class="ft-pay-card-actions">
+            <button class="ft-icon-btn ft-icon-btn-edit"   title="Edit"   onclick="openRepayModal(${p.payId})">✏️</button>
+            <button class="ft-icon-btn ft-icon-btn-delete" title="Delete" onclick="confirmDelete('repay',${p.payId},'payment')">🗑️</button>
+          </div>
+        </div>`).join('')
+    : '<div class="ft-empty"><div class="ft-empty-icon">📒</div><div class="ft-empty-text">No payments recorded</div></div>';
+
+  renderCardPagination('repay','repayPagination');
+}
+
+function openRepayModal(id) {
+  clearModal('repayModal');
+  const loans = Q('SELECT loanId,loanName FROM LoanMaster ORDER BY loanName');
+  document.getElementById('rLoanId').innerHTML = loans.map(l=>`<option value="${l.loanId}">${l.loanName}</option>`).join('');
+  const now = new Date();
+  document.getElementById('rYear').value  = now.getFullYear();
+  document.getElementById('rMonth').value = now.getMonth()+1;
+  if (id) {
+    const r=Q('SELECT * FROM MonthlyPayment WHERE payId=?',[id])[0];
+    document.getElementById('repayModalTitle').textContent='Edit Payment';
+    document.getElementById('rId').value      = r.payId;
+    document.getElementById('rLoanId').value  = r.loanId;
+    document.getElementById('rYear').value    = r.year;
+    document.getElementById('rMonth').value   = r.month;
+    document.getElementById('rAmount').value  = r.totalAmount;
+    document.getElementById('rAmtPreview').textContent = inr(r.totalAmount);
+  } else {
+    document.getElementById('repayModalTitle').textContent='Record Payment';
+  }
+  openModal('repayModal');
+}
+
+function saveRepay() {
+  const id=document.getElementById('rId').value;
+  const loanId=document.getElementById('rLoanId').value;
+  const year=+document.getElementById('rYear').value;
+  const month=+document.getElementById('rMonth').value;
+  const amount=+document.getElementById('rAmount').value||0;
+  if (!loanId) return toast('Select a loan','error');
+  if (!amount) return toast('Amount is required','error');
+  if (id) {
+    db.run('UPDATE MonthlyPayment SET loanId=?,month=?,year=?,totalAmount=? WHERE payId=?',[loanId,month,year,amount,id]);
+    toast('Payment updated','success');
+  } else {
+    db.run('INSERT INTO MonthlyPayment(loanId,month,year,totalAmount) VALUES(?,?,?,?)',[loanId,month,year,amount]);
+    toast('Payment recorded','success');
+  }
+  saveDB(); closeModal('repayModal'); loadRepay();
+}
+
+/* ═══════════════════════════════════════════
+   CUMULATIVE
+═══════════════════════════════════════════ */
+function loadCumulative() {
+  const members   = Q('SELECT memberId,name,joinDate,memberAmount FROM Members ORDER BY name');
+  const tPaid     = Q('SELECT SUM(totalAmount) s FROM MonthlyPayment')[0]?.s||0;
+  const share     = members.length ? tPaid/members.length : 0;
+  let grandTotal  = 0;
+
+  document.getElementById('cumulativeBody').innerHTML = members.map((m,i)=>{
+    const cum = share + (m.memberAmount||0);
+    grandTotal += cum;
+    return `<tr>
+      <td><span class="ft-cumulative-rank">${i+1}</span></td>
+      <td style="font-weight:600;color:var(--ft-silver-bright)">${m.name}</td>
+      <td style="color:var(--ft-text-muted)">${fmtDate(m.joinDate)}</td>
+      <td class="ft-cumulative-amount">${inr(cum)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cumulativeFoot').innerHTML =
+    `<tr><td colspan="3" style="text-align:right;padding-right:16px;font-size:14px">Grand Total</td>
+         <td class="ft-cumulative-amount">${inr(grandTotal)}</td></tr>`;
+}
+
+/* ═══════════════════════════════════════════
+   REPORTS
+═══════════════════════════════════════════ */
+function loadReports() {
+  const loans = Q('SELECT * FROM LoanMaster');
+  const el    = document.getElementById('reportContent');
+  if (!loans.length) { el.innerHTML='<div class="ft-empty"><div class="ft-empty-icon">📄</div><div class="ft-empty-text">No loans to report</div></div>'; return; }
+
+  el.innerHTML = loans.map(loan=>{
+    const payments = Q('SELECT * FROM MonthlyPayment WHERE loanId=? ORDER BY year,month',[loan.loanId]);
+    const paid     = payments.length;
+    const out      = loan.loanDuration - paid;
+    const tPaid    = payments.reduce((s,p)=>s+p.totalAmount,0);
+    const tOut     = Math.max(0, loan.loanAmount - tPaid);
+
+    const rows = payments.map((p,i)=>`<tr>
+      <td>${i+1}</td>
+      <td>${MONTHS[p.month]}</td>
+      <td>${p.year}</td>
+      <td style="color:var(--ft-eco-bright);font-weight:600">${inr(p.totalAmount)}</td>
+    </tr>`).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--ft-text-dim);padding:16px">No payments recorded yet</td></tr>`;
+
+    return `<div class="ft-report-card">
+      <div class="ft-report-card-header">
+        <div>
+          <div class="ft-report-loan-name">💳 ${loan.loanName}</div>
+          <div class="ft-report-sub">${fmtDate(loan.loanStartDate)} → ${fmtDate(loan.loanEndDate)} &nbsp;•&nbsp; ${loan.interest}% interest &nbsp;•&nbsp; ${loan.loanDuration} months</div>
+        </div>
+        <div class="ft-report-metrics">
+          <div class="ft-report-metric amount">${inr(loan.loanAmount)}</div>
+          <div class="ft-report-metric paid">✅ ${paid} paid</div>
+          <div class="ft-report-metric outstanding">⏳ ${out} outstanding</div>
+          <div class="ft-report-metric balance">💸 ${inr(tOut)} balance</div>
+        </div>
+      </div>
+      <div class="ft-report-card-body">
+        <table class="ft-report-table">
+          <thead><tr><th>#</th><th>Month</th><th>Year</th><th>Amount Paid</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr><td colspan="3">Total Paid</td><td>${inr(tPaid)}</td></tr></tfoot>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════
+   DB SYNC / BACKUP
+═══════════════════════════════════════════ */
+function logSync(msg) {
+  const ts = new Date().toLocaleString('en-IN');
+  document.getElementById('syncLog').innerHTML += `<div>[${ts}] ${msg}</div>`;
+}
+
+function exportJSON() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    members:  Q('SELECT * FROM Members'),
+    loans:    Q('SELECT * FROM LoanMaster'),
+    payments: Q('SELECT * FROM MonthlyPayment'),
+  };
+  downloadFile('SSS_Funds_Backup_'+Date.now()+'.json', JSON.stringify(payload, null, 2), 'application/json');
+  logSync('✅ JSON backup downloaded successfully.');
+  toast('JSON backup downloaded','success');
+}
+
+function exportCSV() {
+  const rows = Q(`SELECT mp.payId,lm.loanName,mp.month,mp.year,mp.totalAmount
+                  FROM MonthlyPayment mp JOIN LoanMaster lm ON mp.loanId=lm.loanId
+                  ORDER BY mp.year,mp.month`);
+  const header = 'PayID,Loan Name,Month,Year,Total Amount\n';
+  const body   = rows.map(r=>`${r.payId},"${r.loanName}",${r.month},${r.year},${r.totalAmount}`).join('\n');
+  downloadFile('SSS_Payments_'+Date.now()+'.csv', header+body, 'text/csv');
+  logSync('✅ CSV (Payments) downloaded successfully.');
+  toast('CSV downloaded','success');
+}
+
+function downloadFile(name, content, mime) {
+  const a   = document.createElement('a');
+  a.href    = URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      let mCount=0, lCount=0, pCount=0;
+
+      (data.members||[]).forEach(m => {
+        const ex = Q('SELECT memberId FROM Members WHERE memberId=?',[m.memberId]);
+        if (ex.length) {
+          db.run('UPDATE Members SET name=?,age=?,phone=?,address=?,joinDate=?,memberAmount=? WHERE memberId=?',
+            [m.name,m.age,m.phone,m.address,m.joinDate,m.memberAmount,m.memberId]);
+        } else {
+          db.run('INSERT INTO Members(memberId,name,age,phone,address,joinDate,memberAmount) VALUES(?,?,?,?,?,?,?)',
+            [m.memberId,m.name,m.age,m.phone,m.address,m.joinDate,m.memberAmount]);
+        }
+        mCount++;
+      });
+      (data.loans||[]).forEach(l => {
+        const ex = Q('SELECT loanId FROM LoanMaster WHERE loanId=?',[l.loanId]);
+        if (ex.length) {
+          db.run('UPDATE LoanMaster SET loanName=?,loanAmount=?,loanStartDate=?,loanEndDate=?,loanDuration=?,interest=? WHERE loanId=?',
+            [l.loanName,l.loanAmount,l.loanStartDate,l.loanEndDate,l.loanDuration,l.interest,l.loanId]);
+        } else {
+          db.run('INSERT INTO LoanMaster(loanId,loanName,loanAmount,loanStartDate,loanEndDate,loanDuration,interest) VALUES(?,?,?,?,?,?,?)',
+            [l.loanId,l.loanName,l.loanAmount,l.loanStartDate,l.loanEndDate,l.loanDuration,l.interest]);
+        }
+        lCount++;
+      });
+      (data.payments||[]).forEach(p => {
+        const ex = Q('SELECT payId FROM MonthlyPayment WHERE payId=?',[p.payId]);
+        if (!ex.length) {
+          db.run('INSERT INTO MonthlyPayment(payId,loanId,month,year,totalAmount) VALUES(?,?,?,?,?)',
+            [p.payId,p.loanId,p.month,p.year,p.totalAmount]);
+          pCount++;
+        }
+      });
+
+      saveDB();
+      logSync(`✅ Import complete — ${mCount} members, ${lCount} loans, ${pCount} payments restored.`);
+      toast('Import successful','success');
+      input.value='';
+    } catch(err) {
+      logSync(`❌ Import failed: ${err.message}`);
+      toast('Import failed: '+err.message,'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ═══════════════════════════════════════════
+   CARD PAGINATION
+═══════════════════════════════════════════ */
+function renderCardPagination(key, pagId) {
+  const state  = cardState[key];
+  const total  = state.filtered.length;
+  const pages  = Math.ceil(total/state.pageSize);
+  const page   = state.page;
+  const start  = (page-1)*state.pageSize;
+  const pagDiv = document.getElementById(pagId);
+  if (!pagDiv) return;
+  if (total===0) { pagDiv.innerHTML=''; return; }
+
+  let btns=`<button class="ft-page-btn" onclick="cardGoPage('${key}',${page-1})" ${page<=1?'disabled':''}>‹</button>`;
+  for (let p=Math.max(1,page-2); p<=Math.min(pages,page+2); p++)
+    btns+=`<button class="ft-page-btn ${p===page?'active':''}" onclick="cardGoPage('${key}',${p})">${p}</button>`;
+  btns+=`<button class="ft-page-btn" onclick="cardGoPage('${key}',${page+1})" ${page>=pages?'disabled':''}>›</button>`;
+
+  pagDiv.innerHTML=`
+    <span class="ft-pagination-info">Showing ${start+1}–${Math.min(start+state.pageSize,total)} of ${total} records</span>
+    <div class="ft-pagination-btns">${btns}</div>`;
+}
+
+function cardGoPage(key, p) {
+  const state=cardState[key];
+  const pages=Math.ceil(state.filtered.length/state.pageSize);
+  if (p<1||p>pages) return;
+  state.page=p;
+  ({members:renderMemberCards,loans:renderLoanCards,repay:renderRepayCards}[key]||(()=>{}))();
+}
+
+function filterCards(key,q) {
+  q=q.toLowerCase().trim();
+  cardState[key].filtered = q
+    ? cardState[key].data.filter(r=>Object.values(r).some(v=>String(v||'').toLowerCase().includes(q)))
+    : [...cardState[key].data];
+  cardState[key].page=1;
+  ({members:renderMemberCards,loans:renderLoanCards,repay:renderRepayCards}[key]||(()=>{}))();
+}
+
+/* ═══════════════════════════════════════════
+   DELETE
+═══════════════════════════════════════════ */
+function confirmDelete(type,id,name) {
+  document.getElementById('confirmMsg').textContent=`Delete "${name}"? This cannot be undone.`;
+  document.getElementById('confirmOkBtn').onclick=()=>{doDelete(type,id);closeConfirm();};
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+function closeConfirm() { document.getElementById('confirmOverlay').classList.remove('open'); }
+function doDelete(type,id) {
+  const sql={member:'DELETE FROM Members WHERE memberId=?',loan:'DELETE FROM LoanMaster WHERE loanId=?',repay:'DELETE FROM MonthlyPayment WHERE payId=?'};
+  if (sql[type]) { db.run(sql[type],[id]); saveDB(); toast('Deleted','success'); ({member:loadMembers,loan:loadLoans,repay:loadRepay}[type]||(()=>{}))(); }
+}
+
+/* ═══════════════════════════════════════════
+   MODAL HELPERS
+═══════════════════════════════════════════ */
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function clearModal(id) { document.getElementById(id).querySelectorAll('input,select').forEach(el=>el.value=''); }
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+function toast(msg,type='info') {
+  const icons={success:'✅',error:'❌',info:'ℹ️'};
+  const el=document.createElement('div');
+  el.className=`ft-toast ${type}`;
+  el.innerHTML=`<span>${icons[type]||'•'}</span><span>${msg}</span>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+document.querySelectorAll('.ft-modal-overlay').forEach(ov=>
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');}));
+</script>
+</body>
+</html>
