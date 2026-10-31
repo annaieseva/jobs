@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e1f22">
+<title>SSS Funds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="theme.css" rel="stylesheet">
+<style>
+/* Dark Gray override of the silver theme tokens */
+:root{
+  --surface:#2b2d31; --surface-page:#1e1f22; --surface-subtle:#383b40; --surface-inverse:#16171a;
+  --color-border-light:#3f4248;
+  --color-text-dark:#e8eaed; --color-text-muted:#9aa0a6; --color-text-placeholder:#6f757c;
+  --color-text-blue:#6db3ec; --color-primary:#0b5a94; --color-accent-blue:#0e6bb0;
+  --shadow-raised:0 2px 10px rgba(0,0,0,.35); --shadow-focus:0 0 0 2px rgba(109,179,236,.3);
+  --focus-ring:3px solid rgba(109,179,236,.45);
+}
+body{font-size:14px;padding-bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;height:calc(44px + env(safe-area-inset-top,0px));
+  padding:env(safe-area-inset-top,0px) 4px 0 6px;background:var(--surface-inverse);border-bottom:1px solid var(--color-border-light)}
+.tabs{display:flex;flex:1;min-width:0}
+.tab{flex:1;height:44px;font:600 13px var(--font-sans);color:var(--color-text-muted);background:none;border:0;border-bottom:3px solid transparent;cursor:pointer}
+.tab.on{color:#fff;border-bottom-color:var(--color-accent-orange)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--status-warning);position:absolute;top:7px;right:6px}
+.dot.ok{background:var(--status-success)}
+.wrap{padding:12px;max-width:640px;margin:0 auto}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.stat{padding:12px 14px}.stat b{display:block;font-size:18px}
+.grid{display:grid;gap:12px}
+.loan{overflow:hidden}.loan .card__body{padding:14px}
+.big{font-size:22px;font-weight:700}
+.bar{height:6px;border-radius:3px;background:var(--surface-subtle);overflow:hidden;margin:8px 0 12px}
+.bar i{display:block;height:100%;background:var(--status-success)}
+.row{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.sec{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.sec h2{margin:0}
+.item{display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:8px}
+.item .no{width:22px;color:var(--color-text-muted);font-size:12px}
+.item .mid{flex:1;min-width:0}.item .mid div:first-child{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amt{font-weight:700;text-align:right}
+.icon-btn{color:var(--color-text-muted);position:relative}
+.modal{max-width:420px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:200;background:var(--surface-subtle);border:1px solid var(--color-border-light);padding:8px 14px;border-radius:var(--radius-pill);font-size:12px}
+</style>
+</head>
+<body>
+<nav class="topbar">
+  <div class="tabs">
+    <button class="tab on" data-t="dash">Dashboard</button>
+    <button class="tab" data-t="mem">Sandha</button>
+    <button class="tab" data-t="loan">Loans</button>
+  </div>
+  <button class="icon-btn" id="storeBtn" aria-label="Storage"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h16v6H4zm0 10h16v6H4zM7 7v.01M7 17v.01" stroke="currentColor" stroke-width="0"/><circle cx="7" cy="7" r="1" fill="#2b2d31"/><circle cx="7" cy="17" r="1" fill="#2b2d31"/></svg><span class="dot" id="dot"></span></button>
+</nav>
+<main class="wrap" id="view"></main>
+
+<script>
+const RATE = 200;                         // Sandha per month
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inr = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const mi = ym => { const [y,m] = ym.split('-').map(Number); return y*12 + m - 1; };
+const fromMi = n => `${Math.floor(n/12)}-${String(n%12+1).padStart(2,'0')}`;
+const fmt = (ym, sep='-') => { const [y,m] = ym.split('-'); return MON[m-1] + sep + y; };
+const now = () => { const d = new Date(); return d.getFullYear()*12 + d.getMonth(); };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+
+let members = [], loans = [], tab = 'dash', dir = null;
+
+/* ---------- Storage: Google Sheet via Apps Script (browser copy kept as offline cache) ---------- */
+const LS = 'sss_funds_v2', CFG = 'sss_cfg';
+let cfg = JSON.parse(localStorage.getItem(CFG) || '{}'), synced = false;
+const cache = () => localStorage.setItem(LS, JSON.stringify({members, loans}));
+
+async function api(body) {
+  const r = await fetch(cfg.url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({key: cfg.key, ...body})});
+  const j = await r.json(); if (!j.ok) throw new Error(j.error || 'Failed'); return j;
+}
+async function load() {
+  if (!cfg.url) return render();
+  $('#view').innerHTML = '<div class="loader"><span class="spinner"></span><span class="loader__text">Loading…</span></div>';
+  try {
+    const j = await api({action:'load'});
+    if (!j.members.length && !j.loans.length && (members.length || loans.length)) await api({action:'save', members, loans}); // empty Sheet: upload current data
+    else { members = j.members; loans = j.loans; }
+    synced = true; cache();
+  } catch (e) { synced = false; toast('Offline: ' + e.message); }
+  render();
+}
+async function save() {
+  cache(); render();
+  if (!cfg.url) return;
+  try { await api({action:'save', members, loans}); synced = true; } catch (e) { synced = false; toast('Save failed: ' + e.message); }
+  render();
+}
+function exportJson() {
+  for (const [n, d] of [['tblMembers.json', members], ['tblLoans.json', loans]]) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(d, null, 2)], {type:'application/json'}));
+    a.download = n; a.click();
+  }
+}
+function importJson(files) {
+  [...files].forEach(f => f.text().then(t => { try {
+    const d = JSON.parse(t); if (!Array.isArray(d)) throw 0;
+    if (/member/i.test(f.name)) members = d; else if (/loan/i.test(f.name)) loans = d;
+    save(); toast('Imported ' + f.name);
+  } catch { toast('Invalid file: ' + f.name); } }));
+}
+
+/* ---------- Calculations ---------- */
+const sandha = m => Math.max(0, now() - mi(m.doj) + 1) * RATE;
+function loanInfo(l) {
+  const paid = Math.min(l.tenure, Math.max(0, now() - mi(l.date)));
+  const emi = l.amount / l.tenure;
+  return {paid, emi, out: emi * (l.tenure - paid), close: fromMi(mi(l.date) + l.tenure), done: paid >= l.tenure};
+}
+
+/* ---------- Views ---------- */
+function render() {
+  $('#dot').className = 'dot' + (synced ? ' ok' : '');
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  const v = $('#view');
+  if (tab === 'dash') {
+    const out = loans.reduce((s,l) => s + loanInfo(l).out, 0), tot = members.reduce((s,m) => s + sandha(m), 0);
+    v.innerHTML = `<div class="stats"><div class="card stat"><span class="text-caption">Total Sandha</span><b>${inr(tot)}</b></div>
+      <div class="card stat"><span class="text-caption">Outstanding</span><b>${inr(out)}</b></div></div>
+      <div class="grid">${loans.map(l => { const i = loanInfo(l); return `<div class="card loan"><div class="accent-bar"></div><div class="card__body">
+        <div class="u-between"><h3 style="margin:0">${esc(l.name)}</h3>${i.done ? '<span class="badge badge--success badge--pill">Closed</span>' : ''}</div>
+        <div class="big" style="margin-top:6px">${i.paid}/${l.tenure} <span class="text-muted" style="font-size:13px;font-weight:500">Paid</span></div>
+        <div class="bar"><i style="width:${i.paid/l.tenure*100}%"></i></div>
+        <div class="row"><div><div class="text-caption">Outstanding</div><b>${inr(i.out)}</b><div class="text-caption">EMI ${inr(i.emi)}/mo</div></div>
+        <div style="text-align:right"><div class="text-caption">Closes on</div><b>${fmt(i.close,' - ')}</b></div></div></div></div>`; }).join('') || '<div class="empty">No loans yet</div>'}</div>`;
+  } else if (tab === 'mem') {
+    v.innerHTML = `<div class="sec"><h2>Sandha Cumulation</h2><button class="btn btn--primary btn--sm" onclick="editMember()">+ Add</button></div>
+      ${members.map((m,i) => `<div class="card item"><span class="no">${i+1}</span><div class="mid"><div>${esc(m.name)}</div><div class="text-caption">DOJ ${fmt(m.doj)}</div></div>
+        <div class="amt">${inr(sandha(m))}</div>
+        <button class="icon-btn" onclick="editMember('${m.id}')" aria-label="Edit">✎</button><button class="icon-btn" onclick="delMember('${m.id}')" aria-label="Delete">🗑</button></div>`).join('') || '<div class="empty">No members yet</div>'}
+      <p class="text-caption text-center">${inr(RATE)} per month, counted from the DOJ month</p>`;
+  } else {
+    v.innerHTML = `<div class="sec"><h2>Loans</h2><button class="btn btn--primary btn--sm" onclick="editLoan()">+ Add</button></div>
+      ${loans.map((l,i) => `<div class="card item"><span class="no">${i+1}</span><div class="mid"><div>${esc(l.name)}</div><div class="text-caption">${fmt(l.date)} · ${l.tenure} months</div></div>
+        <div class="amt">${inr(l.amount)}</div>
+        <button class="icon-btn" onclick="editLoan('${l.id}')" aria-label="Edit">✎</button><button class="icon-btn" onclick="delLoan('${l.id}')" aria-label="Delete">🗑</button></div>`).join('') || '<div class="empty">No loans yet</div>'}`;
+  }
+}
+
+/* ---------- Modal forms ---------- */
+function modal(title, body, onSave, saveLabel = 'Save') {
+  closeModal();
+  const d = document.createElement('div'); d.className = 'backdrop'; d.id = 'bd';
+  d.innerHTML = `<div class="modal"><div class="modal__header"><h3 class="modal__title">${title}</h3><button class="icon-btn" onclick="closeModal()">✕</button></div>
+    <div class="modal__body">${body}</div>${onSave ? `<div class="modal__footer"><button class="btn btn--outline" onclick="closeModal()">Cancel</button><button class="btn btn--primary" id="ok">${saveLabel}</button></div>` : ''}</div>`;
+  d.addEventListener('click', e => { if (e.target === d) closeModal(); });
+  document.body.appendChild(d);
+  if (onSave) $('#ok').onclick = () => { if (onSave() !== false) closeModal(); };
+}
+const closeModal = () => $('#bd')?.remove();
+const fld = (id, label, type, val = '', extra = '') => `<div class="field"><label for="${id}">${label}</label><input class="input" id="${id}" type="${type}" value="${esc(val)}" ${extra}></div>`;
+const bad = id => { $('#'+id).classList.add('input--invalid'); return false; };
+
+function editMember(id) {
+  const m = members.find(x => x.id === id) || {};
+  modal(id ? 'Edit Member' : 'Add Member', fld('f1','Name','text',m.name) + fld('f2','Date of Joining','month',m.doj), () => {
+    const name = $('#f1').value.trim(), doj = $('#f2').value;
+    if (!name) return bad('f1'); if (!doj) return bad('f2');
+    if (id) Object.assign(m, {name, doj}); else members.push({id: uid(), name, doj});
+    save();
+  });
+}
+function editLoan(id) {
+  const l = loans.find(x => x.id === id) || {};
+  modal(id ? 'Edit Loan' : 'Add Loan', fld('f1','Loan Name','text',l.name) + fld('f2','Amount (₹)','number',l.amount,'inputmode="numeric" min="1"')
+    + fld('f3','Loan Date','month',l.date) + fld('f4','Tenure (months)','number',l.tenure || 24,'inputmode="numeric" min="1"'), () => {
+    const name = $('#f1').value.trim(), amount = +$('#f2').value, date = $('#f3').value, tenure = parseInt($('#f4').value);
+    if (!name) return bad('f1'); if (!(amount > 0)) return bad('f2'); if (!date) return bad('f3'); if (!(tenure > 0)) return bad('f4');
+    if (id) Object.assign(l, {name, amount, date, tenure}); else loans.push({id: uid(), name, amount, date, tenure});
+    save();
+  });
+}
+const delMember = id => { const m = members.find(x => x.id === id); if (confirm(`Delete ${m.name}?`)) { members = members.filter(x => x.id !== id); save(); } };
+const delLoan = id => { const l = loans.find(x => x.id === id); if (confirm(`Delete ${l.name}?`)) { loans = loans.filter(x => x.id !== id); save(); } };
+
+function storageModal() {
+  modal('Google Sheet', `<p class="text-muted">${synced ? '✅ Connected. Every change is saved to your Sheet.' : cfg.url ? '⚠️ Not synced. Check the URL, key and internet.' : 'Paste your Apps Script web app URL and key.'}</p>
+    ${fld('c1','Web app URL','url',cfg.url || '','placeholder="https://script.google.com/macros/s/…/exec"')}
+    ${fld('c2','Secret key','password',cfg.key || '')}
+    <div class="u-col"><button class="btn btn--outline btn--block" id="b2">Export JSON backup</button>
+    <label class="btn btn--outline btn--block" style="cursor:pointer">Import JSON files<input type="file" id="b3" accept=".json" multiple hidden></label></div>`,
+    () => { cfg = {url: $('#c1').value.trim(), key: $('#c2').value}; localStorage.setItem(CFG, JSON.stringify(cfg)); load(); }, 'Save & connect');
+  $('#b2').onclick = exportJson; $('#b3').onchange = e => importJson(e.target.files);
+}
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2200); }
+
+/* ---------- Init ---------- */
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { tab = b.dataset.t; render(); scrollTo(0,0); });
+$('#storeBtn').onclick = storageModal;
+(async () => {
+  try { const c = JSON.parse(localStorage.getItem(LS)); if (c) { members = c.members || []; loans = c.loans || []; } } catch {}
+  if (!localStorage.getItem(LS) && !cfg.url) {   // starter data from the brief
+    members = [{id:uid(),name:'Saravanan',doj:'2019-01'},{id:uid(),name:'Sivakumar',doj:'2005-02'}];
+    loans = [{id:uid(),name:'All Members Loan',amount:200000,date:'2026-03',tenure:24},
+             {id:uid(),name:'Internal Loan 1 - Siva',amount:70000,date:'2026-04',tenure:24},
+             {id:uid(),name:'Internal Loan 2 - Siva',amount:100000,date:'2026-05',tenure:24}];
+  }
+  render(); load();
+})();
+</script>
+</body>
+</html>
